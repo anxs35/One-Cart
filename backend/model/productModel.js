@@ -47,6 +47,10 @@ const productSchema = new mongoose.Schema({
     },
     bestseller:{
         type:Boolean
+    },
+    stock:{
+        type:Number,
+        default:50
     }
 
 },{timestamps:true})

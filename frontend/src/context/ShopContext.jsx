@@ -74,15 +74,17 @@ function ShopContext({children}) {
 
 
     const getUserCart = async () => {
+      if (!userData) return; // Don't fetch cart if user is not logged in
       try {
         const result = await axios.post(serverUrl + '/api/cart/get',{},{ withCredentials: true })
 
       setCartItem(result.data)
     } catch (error) {
-      console.log(error)
-     
-
-
+      if (error.response && error.response.data) {
+        console.log("getUserCart error:", error.response.data);
+      } else {
+        console.log(error);
+      }
     }
       
     }
@@ -140,8 +142,10 @@ function ShopContext({children}) {
     },[])
 
     useEffect(() => {
-    getUserCart()
-  },[])
+    if (userData) {
+      getUserCart()
+    }
+  },[userData])
 
 
 

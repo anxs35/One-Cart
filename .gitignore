@@ -1,0 +1,59 @@
+# ==========================================
+# Dependencies
+# ==========================================
+node_modules/
+**/node_modules/
+
+# ==========================================
+# Environment & Sensitive Files
+# ==========================================
+.env
+.env.*
+*.env
+!.env.example
+test_users_credentials.md
+
+# ==========================================
+# Production & Build Outputs
+# ==========================================
+dist/
+dist-ssr/
+build/
+**/dist/
+**/build/
+*.local
+
+# ==========================================
+# Logs & Debugging
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==========================================
+# Operating System & Editor Files
+# ==========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==========================================
+# Temporary & Cache
+# ==========================================
+.cache/
+.eslintcache
+.temp/
+.tmp/

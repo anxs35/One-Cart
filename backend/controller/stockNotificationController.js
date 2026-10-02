@@ -1,0 +1,31 @@
+import stockNotificationModel from "../model/stockNotificationModel.js";
+
+const getNotifications = async (req, res) => {
+    try {
+        const notifications = await stockNotificationModel.find({}).sort({ createdAt: -1 });
+        res.json({ success: true, notifications });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+};
+
+const markAsRead = async (req, res) => {
+    try {
+        const { notificationId } = req.body;
+        await stockNotificationModel.findByIdAndUpdate(notificationId, { isRead: true });
+        res.json({ success: true, message: "Notification marked as read" });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+};
+
+const getUnreadCount = async (req, res) => {
+    try {
+        const count = await stockNotificationModel.countDocuments({ isRead: false });
+        res.json({ success: true, count });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+};
+
+export { getNotifications, markAsRead, getUnreadCount };

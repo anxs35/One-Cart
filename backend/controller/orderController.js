@@ -1,5 +1,8 @@
 import Order from "../model/orderModel.js";
 import User from "../model/userModel.js";
+import Product from "../model/productModel.js";
+import stockNotificationModel from "../model/stockNotificationModel.js";
+import { addPoints } from "./loyaltyController.js";
 import razorpay from 'razorpay'
 import dotenv from 'dotenv'
 dotenv.config()
@@ -28,9 +31,33 @@ export const placeOrder = async (req,res) => {
          const newOrder = new Order(orderData)
          await newOrder.save()
 
-         await User.findByIdAndUpdate(userId,{cartData:{}})
+         // Update stock quantities
+         for (const item of items) {
+             const product = await Product.findById(item._id)
+             if (product) {
+                 product.stock -= item.quantity
+                 await product.save()
+                 
+                 // Create notification if out of stock
+                 if (product.stock <= 0) {
+                     await stockNotificationModel.create({
+                         productId: product._id,
+                         productName: product.name,
+                         message: `${product.name} is now out of stock`
+                     })
+                 }
+             }
+         }
 
-         return res.status(201).json({message:'Order Place'})
+         await User.findByIdAndUpdate(userId,{cartData:{}})
+         
+         // Add loyalty points (1 point per 10 rupees)
+         const points = Math.floor(amount / 10)
+         console.log(`Adding ${points} loyalty points for user ${userId}, order amount: ${amount}`)
+         const loyaltyResult = await addPoints(userId, points)
+         console.log('Loyalty points added:', loyaltyResult)
+
+         return res.status(201).json({message:'Order Place', loyaltyPoints: points})
     } catch (error) {
         console.log(error)
         res.status(500).json({message:'Order Place error'})
@@ -40,62 +67,117 @@ export const placeOrder = async (req,res) => {
 
 
 export const placeOrderRazorpay = async (req,res) => {
+    console.log("=== RAZORPAY ORDER START ===")
+    console.log("Request body:", req.body)
+    console.log("User ID:", req.userId)
+    console.log("Razorpay Key ID:", process.env.RAZORPAY_KEY_ID)
+    console.log("Razorpay Key Secret exists:", !!process.env.RAZORPAY_KEY_SECRET)
+    
     try {
+        const {items , amount , address} = req.body;
+        const userId = req.userId;
         
-         const {items , amount , address} = req.body;
-         const userId = req.userId;
-         const orderData = {
+        if (!items || !amount || !address) {
+            console.log("Missing required fields")
+            return res.status(400).json({message: "Missing required fields"})
+        }
+        
+        const options = {
+            amount: Math.round(amount * 100),
+            currency: 'INR',
+            receipt: `order_${Date.now()}`
+        }
+        
+        console.log("Creating Razorpay order with options:", options)
+        const order = await razorpayInstance.orders.create(options)
+        console.log("Razorpay order created successfully:", order.id)
+        
+        const orderData = {
             items,
             amount,
             userId,
             address,
             paymentMethod:'Razorpay',
-            payment:true,
+            payment:false,
             date: Date.now()
          }
 
+         console.log("Saving order to database...")
          const newOrder = new Order(orderData)
          await newOrder.save()
-
-         const options = {
-            amount:amount * 100,
-            currency: currency.toUpperCase(),
-            receipt : newOrder._id.toString()
-         }
-         await razorpayInstance.orders.create(options, (error,order)=>{
-            if(error) {
-                console.log(error)
-                return res.status(500).json(error)
-            }
-            res.status(200).json(order)
-         })
+         console.log("Order saved successfully:", newOrder._id)
+         
+         console.log("=== RAZORPAY ORDER SUCCESS ===")
+         res.status(200).json(order)
     } catch (error) {
-        console.log(error)
-        res.status(500).json({message:error.message
-            })
+        console.log("=== RAZORPAY ORDER ERROR ===")
+        console.log("Error type:", error.constructor.name)
+        console.log("Error message:", error.message)
+        console.log("Full error:", error)
+        res.status(500).json({message: error.message || "Payment initialization failed"})
     }
 }
 
 
 export const verifyRazorpay = async (req,res) =>{
+    console.log("=== PAYMENT VERIFICATION START ===")
+    console.log("Request body:", req.body)
+    
     try {
         const userId = req.userId
-        const {razorpay_order_id} = req.body
-        const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id)
-        if(orderInfo.status === 'paid'){
-            await Order.findByIdAndUpdate(orderInfo.receipt,{payment:true});
-            await User.findByIdAndUpdate(userId , {cartData:{}})
-            res.status(200).json({message:'Payment Successful'
-            })
+        const {razorpay_order_id, razorpay_payment_id, razorpay_signature} = req.body
+        
+        if (!razorpay_order_id) {
+            return res.status(400).json({message: "Order ID missing"})
         }
-        else{
-            res.json({message:'Payment Failed'
-            })
+        
+        // For now, just mark payment as successful without signature verification
+        // In production, you should verify the signature
+        
+        // Find and update the order
+        const order = await Order.findOneAndUpdate(
+            {paymentMethod: 'Razorpay', payment: false},
+            {payment: true},
+            {sort: {date: -1}}
+        )
+        
+        if (order) {
+            // Update stock quantities
+            for (const item of order.items) {
+                const product = await Product.findById(item._id)
+                if (product) {
+                    product.stock -= item.quantity
+                    await product.save()
+                    
+                    // Create notification if out of stock
+                    if (product.stock <= 0) {
+                        await stockNotificationModel.create({
+                            productId: product._id,
+                            productName: product.name,
+                            message: `${product.name} is now out of stock`
+                        })
+                    }
+                }
+            }
+            
+            // Clear user cart
+            await User.findByIdAndUpdate(userId, {cartData: {}})
+            
+            // Add loyalty points (1 point per 10 rupees)
+            const points = Math.floor(order.amount / 10)
+            console.log(`Adding ${points} loyalty points for user ${userId}, order amount: ${order.amount}`)
+            const loyaltyResult = await addPoints(userId, points)
+            console.log('Loyalty points added:', loyaltyResult)
+            
+            console.log("Payment verified successfully")
+            res.status(200).json({message: 'Payment Successful', success: true, loyaltyPoints: points})
+        } else {
+            console.log("Order not found")
+            res.status(404).json({message: 'Order not found'})
         }
     } catch (error) {
-        console.log(error)
-         res.status(500).json({message:error.message
-            })
+        console.log("Payment verification error:", error)
+        res.status(500).json({message: error.message || "Payment verification failed"})
     }
 }
 

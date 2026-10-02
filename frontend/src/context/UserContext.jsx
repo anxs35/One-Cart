@@ -17,7 +17,10 @@ function UserContext({children}) {
 
         } catch (error) {
             setUserData(null)
-            console.log(error)
+            // Don't log authentication errors as they're expected when not logged in
+            if (error.response?.status !== 400) {
+                console.log("getCurrentUser error:", error.response?.data || error);
+            }
         }
     }
 

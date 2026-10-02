@@ -3,6 +3,7 @@ import Title from '../component/Title'
 import { shopDataContext } from '../context/ShopContext'
 import { authDataContext } from '../context/authContext'
 import axios from 'axios'
+import jsPDF from 'jspdf'
 
 function Order() {
     let [orderData,setOrderData] = useState([])
@@ -28,6 +29,39 @@ function Order() {
     } catch (error) {
       console.log(error)
     }
+    }
+
+    const downloadReceipt = (item) => {
+        const doc = new jsPDF()
+        
+        // Header
+        doc.setFontSize(20)
+        doc.text('OneCart Receipt', 20, 30)
+        
+        // Order details
+        doc.setFontSize(12)
+        doc.text(`Order Date: ${new Date(item.date).toDateString()}`, 20, 50)
+        doc.text(`Payment Method: ${item.paymentMethod}`, 20, 60)
+        doc.text(`Status: ${item.status}`, 20, 70)
+        
+        // Product details
+        doc.setFontSize(14)
+        doc.text('Product Details:', 20, 90)
+        doc.setFontSize(12)
+        doc.text(`Product: ${item.name}`, 20, 105)
+        doc.text(`Price: ${currency} ${item.price}`, 20, 115)
+        doc.text(`Quantity: ${item.quantity}`, 20, 125)
+        doc.text(`Size: ${item.size}`, 20, 135)
+        
+        // Total
+        doc.setFontSize(14)
+        doc.text(`Total: ${currency} ${item.price * item.quantity}`, 20, 155)
+        
+        // Footer
+        doc.setFontSize(10)
+        doc.text('Thank you for shopping with OneCart!', 20, 180)
+        
+        doc.save(`receipt-${item.name}-${new Date(item.date).toDateString()}.pdf`)
     }
 
 useEffect(()=>{
@@ -70,9 +104,14 @@ useEffect(()=>{
                           <span className='w-2.5 h-2.5 rounded-full bg-green-500'></span> 
                           <p className='text-md font-medium text-green-800 capitalize'>{item.status}</p>
                         </div>
-                        <button className='px-4 py-2 rounded-md bg-white border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors' onClick={loadOrderData}>
-                          Track Order
-                        </button>
+                        <div className='flex flex-col gap-2'>
+                          <button className='px-4 py-2 rounded-md bg-white border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 transition-colors' onClick={loadOrderData}>
+                            Track Order
+                          </button>
+                          <button className='px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors' onClick={() => downloadReceipt(item)}>
+                            📄 Download Receipt
+                          </button>
+                        </div>
                     </div>
                 </div>
             </div>

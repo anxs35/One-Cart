@@ -4,7 +4,7 @@ import Product from "../model/productModel.js"
 
 export const addProduct = async (req,res) => {
     try {
-        let {name,description,price,category,subCategory,sizes,bestseller} = req.body
+        let {name,description,price,category,subCategory,sizes,bestseller,stock} = req.body
 
         let image1 = await uploadOnCloudinary(req.files.image1[0].path)
         let image2 = await uploadOnCloudinary(req.files.image2[0].path)
@@ -19,6 +19,7 @@ export const addProduct = async (req,res) => {
             subCategory,
             sizes :JSON.parse(sizes),
             bestseller :bestseller === "true" ? true : false,
+            stock: Number(stock),
             date :Date.now(),
             image1,
             image2,

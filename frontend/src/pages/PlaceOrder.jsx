@@ -8,6 +8,7 @@ import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'react-toastify'
 import Loading from '../component/Loading'
+import LoyaltyGiftPopup from '../component/LoyaltyGiftPopup'
 
 function PlaceOrder() {
     let [method,setMethod] = useState('cod')
@@ -15,6 +16,8 @@ function PlaceOrder() {
     const {cartItem , setCartItem , getCartAmount , delivery_fee , products } = useContext(shopDataContext)
     let {serverUrl} = useContext(authDataContext)
     let [loading ,setLoading] = useState(false)
+    const [showGiftPopup, setShowGiftPopup] = useState(false)
+    const [earnedPoints, setEarnedPoints] = useState(0)
 
     let [formData,setFormData] = useState({
         firstName:'',
@@ -44,12 +47,24 @@ function PlaceOrder() {
       order_id: order.id,
       receipt: order.receipt,
       handler: async (response) => {
-        console.log(response)
-    const {data} = await axios.post(serverUrl + '/api/order/verifyrazorpay',response,{withCredentials:true})
-    if(data){
-        navigate("/order")
-        setCartItem({})
-    }
+        console.log("Payment response:", response)
+        try {
+          const {data} = await axios.post(serverUrl + '/api/order/verifyrazorpay',response,{withCredentials:true})
+          if(data){
+            setCartItem({})
+            toast.success("Payment Successful")
+            if(data.loyaltyPoints > 0) {
+              setEarnedPoints(data.loyaltyPoints)
+              setShowGiftPopup(true)
+              setTimeout(() => navigate("/order"), 4500)
+            } else {
+              navigate("/order")
+            }
+          }
+        } catch (error) {
+          console.log("Payment verification error:", error)
+          toast.error("Payment verification failed")
+        }
       }}
     const rzp = new window.Razorpay(options)
     rzp.open()
@@ -81,28 +96,29 @@ function PlaceOrder() {
       }
       switch(method){
         case 'cod': 
-      
         const result = await axios.post(serverUrl + "/api/order/placeorder" , orderData , {withCredentials:true})
-        console.log(result.data)
+        console.log("COD result:", result.data)
         if(result.data){
             setCartItem({})
-            toast.success("Order Placed")
-            navigate("/order")
-            setLoading(false)
-        }else{
-            console.log(result.data.message)
-            toast.error("Order Placed Error")
-             setLoading(false)
+            toast.success("Order Placed Successfully")
+            if(result.data.loyaltyPoints > 0) {
+              setEarnedPoints(result.data.loyaltyPoints)
+              setShowGiftPopup(true)
+              setTimeout(() => navigate("/order"), 4500)
+            } else {
+              navigate("/order")
+            }
         }
+        setLoading(false)
         break;
 
         case 'razorpay':
         const resultRazorpay = await axios.post(serverUrl + "/api/order/razorpay" , orderData , {withCredentials:true})
+        console.log("Razorpay result:", resultRazorpay.data)
         if(resultRazorpay.data){
           initPay(resultRazorpay.data)
-           toast.success("Order Placed")
-           setLoading(false)
         }
+        setLoading(false)
         break;
 
         default:
@@ -111,6 +127,9 @@ function PlaceOrder() {
     
     } catch (error) {
       console.log(error)
+      const errorMessage = error.response?.data?.message || "Order placement failed"
+      toast.error(errorMessage)
+      setLoading(false)
     }
      }
   return (
@@ -159,6 +178,12 @@ function PlaceOrder() {
                 </div>
             </div>
         </form>
+        
+        <LoyaltyGiftPopup 
+          isVisible={showGiftPopup}
+          points={earnedPoints}
+          onClose={() => setShowGiftPopup(false)}
+        />
     </div>
   )
 }
